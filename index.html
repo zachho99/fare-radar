@@ -273,6 +273,7 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
   .hide-m{display:none}
   .show-m{display:inline}
   .d-country{display:none}
+  .d-dates{display:block}
   .deals th,.deals td{padding:8px 8px}
   .deals td.c-price{font-size:15px}
   .c-star{width:36px}
@@ -530,7 +531,7 @@ function row(r){
   var label = r.origin + " to " + r.city + ", " + money(r.price, cur) + " round trip" + (r.pct > 0 ? ", " + r.pct + " percent below usual" : "");
   return '<tr class="row" tabindex="0" data-open="' + esc(r.id) + '" aria-label="' + esc(label) + '">' +
     '<td class="c-star"><button type="button" class="star-btn" data-watch="' + esc(r.dest) + '" aria-pressed="' + watched + '" aria-label="' + (watched ? "Remove " : "Add ") + esc(r.city) + (watched ? " from" : " to") + ' watchlist" title="' + (watched ? "On your watchlist" : "Watch this destination") + '">' + STAR + '</button></td>' +
-    '<td class="c-dest"><span class="d-city">' + esc(r.city) + '</span><span class="d-sub"><span class="mono">' + r.origin + ' → ' + esc(r.dest) + '</span><span class="d-country"> · ' + esc(r.country) + '</span><span class="show-m"> · ' + dates + '</span></span></td>' +
+    '<td class="c-dest"><span class="d-city">' + esc(r.city) + '</span><span class="d-sub"><span class="mono">' + r.origin + ' → ' + esc(r.dest) + '</span><span class="d-country"> · ' + esc(r.country) + '</span><span class="show-m d-dates">' + dates + '</span></span></td>' +
     '<td class="c-price num">' + money(r.price, cur) + '</td>' +
     '<td class="c-usual num hide-m">' + (r.typical ? money(r.typical, cur) : '–') + '</td>' +
     '<td class="c-off num"><span class="offpill ' + t.cls + '" title="' + esc(t.label) + '">' + (r.pct > 0 ? '−' + r.pct + '%' : '–') + '</span></td>' +
