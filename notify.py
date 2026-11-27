@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Email new Fare Radar deals through Gmail.
 
-Reads data/new_deals.json (written by fetch_deals.py) and config.json, and
-emails the deals worth hearing about. Needs these environment variables
-(GitHub repository secrets):
+Reads data/new_deals.json (written by fetch_deals.py), data/new_curated.json
+(written by fetch_feeds.py) and config.json, and emails what is worth hearing
+about. Needs these environment variables (GitHub repository secrets):
 
   GMAIL_USER          the Gmail address that sends the email
   GMAIL_APP_PASSWORD  a Gmail app password for that address (not your normal password)
@@ -12,6 +12,7 @@ emails the deals worth hearing about. Needs these environment variables
 
 Run with --dry-run to print the email instead of sending it.
 """
+import datetime as dt
 import html
 import json
 import os
@@ -25,6 +26,8 @@ RATES = {"CAD": 1.39, "PHP": 58.5}
 LOCAL = {"YVR": "CAD", "MNL": "PHP"}
 SYM = {"CAD": "CA$", "PHP": "₱"}
 LABEL = {"error": "Possible error fare", "hot": "Hot deal", "deal": "Deal"}
+CURATED_MAX_AGE_HOURS = 36   # never email an old post, even if a feed was down for a while
+CURATED_MAX_ITEMS = 8
 
 
 def load(name, default):
@@ -55,22 +58,36 @@ def worth_sending(r, cfg):
     return r["deal"] in cfg.get("types", ["error", "hot", "deal"]) and r["pct"] >= cfg.get("min_pct", 30)
 
 
+def recent_curated(dry):
+    cur = load("data/new_curated.json", {})
+    if cur.get("first_run") and not dry:
+        return []
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=CURATED_MAX_AGE_HOURS)).isoformat(timespec="seconds")
+    items = [i for i in cur.get("items", []) if i.get("published", "") >= cutoff]
+    items.sort(key=lambda i: (i.get("error", False), i.get("published", "")), reverse=True)
+    return items[:CURATED_MAX_ITEMS]
+
+
 def main():
     dry = "--dry-run" in sys.argv
     cfg = load("config.json", {})
     new = load("data/new_deals.json", {})
-    if new.get("first_run") and not dry:
-        print("First run: saving a baseline, no email sent.")
-        return 0
-    deals = [r for r in new.get("deals", []) if worth_sending(r, cfg)]
-    if not deals:
-        print("No new deals worth an email.")
+    deals = [] if (new.get("first_run") and not dry) else [r for r in new.get("deals", []) if worth_sending(r, cfg)]
+    curated = recent_curated(dry)
+    if not deals and not curated:
+        print("Nothing new worth an email.")
         return 0
 
-    best = deals[0]
-    subject = (f"Fare Radar: {len(deals)} new deal{'s' if len(deals) > 1 else ''}, "
-               f"best {best['origin']} to {best['city']} US${best['price']}"
-               + (f" (-{best['pct']}%)" if best["pct"] > 0 else ""))
+    plural = lambda n, w: f"{n} {w}{'s' if n != 1 else ''}"
+    if deals:
+        best = deals[0]
+        subject = (f"Fare Radar: {plural(len(deals), 'new deal')}, "
+                   f"best {best['origin']} to {best['city']} US${best['price']}"
+                   + (f" (-{best['pct']}%)" if best["pct"] > 0 else ""))
+        if curated:
+            subject += f" + {len(curated)} from deal sites"
+    else:
+        subject = f"Fare Radar: {plural(len(curated), 'new post')} from deal sites about Vancouver or Manila"
     site = os.environ.get("SITE_URL", "")
 
     text = [subject, ""]
@@ -90,16 +107,35 @@ def main():
             f"<span style='color:#0b7468;font-weight:700'>{html.escape(usual)}</span><br>"
             f"{html.escape(r['depart'])} to {html.escape(r['ret'])}, {stops} &middot; {kind}<br>"
             f"<a href='{html.escape(gflights(r))}'>Check on Google Flights</a></td></tr>")
+
+    crows = []
+    if curated:
+        text += ["From deal sites (written by people, so check each one):", ""]
+    for i in curated:
+        tag = "ERROR FARE. " if i.get("error") else ""
+        text += [f"{tag}{i['title']} ({i['source']})", i["link"], ""]
+        crows.append(
+            f"<tr><td style='padding:10px 0;border-top:1px solid #dde3ea'>"
+            + (f"<span style='color:#be2557;font-weight:700'>Error fare</span> " if i.get("error") else "")
+            + f"<a href='{html.escape(i['link'])}'>{html.escape(i['title'])}</a><br>"
+            f"<span style='color:#56657a'>{html.escape(i['source'])}</span></td></tr>")
+
     if site:
         text.append(f"All deals: {site}")
-    text.append("Prices are the cheapest fares travelers recently found and can change. Confirm before booking.")
+    text.append("Prices can change quickly. Confirm before booking.")
 
+    sections = ""
+    if deals:
+        sections += (f"<h2 style='margin:0 0 8px'>{plural(len(deals), 'new flight deal')}</h2>"
+                     f"<table style='width:100%;border-collapse:collapse'>{''.join(rows)}</table>")
+    if curated:
+        sections += (f"<h2 style='margin:16px 0 8px'>From deal sites</h2>"
+                     f"<table style='width:100%;border-collapse:collapse'>{''.join(crows)}</table>")
     body = ("<div style='font-family:Arial,sans-serif;font-size:14px;color:#0e1a2b;max-width:560px'>"
-            f"<h2 style='margin:0 0 8px'>{len(deals)} new flight deal{'s' if len(deals) > 1 else ''}</h2>"
-            f"<table style='width:100%;border-collapse:collapse'>{''.join(rows)}</table>"
+            + sections
             + (f"<p><a href='{html.escape(site)}'>See every deal on Fare Radar</a></p>" if site else "")
-            + "<p style='color:#56657a;font-size:12px'>Prices are the cheapest fares travelers recently found "
-              "and can change. Confirm before booking.</p></div>")
+            + "<p style='color:#56657a;font-size:12px'>Prices are the cheapest fares travelers recently found, or "
+              "posts written by deal sites, and can change. Confirm before booking.</p></div>")
 
     if dry:
         print("\n".join(text))
@@ -121,7 +157,7 @@ def main():
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60) as s:
         s.login(user, password.replace(" ", ""))
         s.send_message(msg)
-    print(f"Emailed {len(deals)} deals.")
+    print(f"Emailed {len(deals)} deals and {len(curated)} curated posts.")
     return 0
 
 

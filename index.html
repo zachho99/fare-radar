@@ -265,6 +265,10 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
 .star-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
 .star-btn[aria-pressed="true"]{color:var(--accent)}
 .star-btn[aria-pressed="true"] svg{fill:currentColor}
+.feedstatus{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.feedstatus span{display:inline-flex;align-items:center;gap:6px}
+.post-title{font-weight:600;color:var(--ink);text-decoration:none}
+.post-title:hover{text-decoration:underline}
 .mini-link{display:inline-block;font-size:12.5px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-right:4px;background:var(--surface);white-space:nowrap}
 .mini-link:hover{border-color:var(--ink)}
 .c-links{white-space:nowrap}
@@ -308,6 +312,7 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
     <nav class="tabs" aria-label="Sections">
       <a href="#deals" data-view="deals">Deals</a>
       <a href="#oneway" data-view="oneway">One-way</a>
+      <a href="#curated" data-view="curated">Deal sites</a>
       <a href="#watchlist" data-view="watchlist">Watchlist</a>
       <a href="#alerts" data-view="alerts">Alerts<span id="alert-badge" class="dot-count" hidden></span></a>
     </nav>
@@ -378,6 +383,22 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
     </div>
     <div class="resultbar"><span id="ow-line"></span></div>
     <div class="tablewrap" id="ow-table"></div>
+  </section>
+
+  <!-- DEAL SITES -->
+  <section id="view-curated" class="view" hidden>
+    <div class="view-head">
+      <div>
+        <h1>Deal sites</h1>
+        <p>Posts from deal sites run by people, filtered to Vancouver and Manila. They catch error fares, sales and premium cabins that the fare data above misses. Each post opens on its own site. Check the price and the airline's rules before booking.</p>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="field"><span class="label">Show</span><label class="check" for="c-err"><input type="checkbox" id="c-err"> Error fares only</label></div>
+    </div>
+    <div class="resultbar"><span id="c-line"></span></div>
+    <div class="feedstatus" id="c-status"></div>
+    <div class="tablewrap" id="c-table"></div>
   </section>
 
   <!-- WATCHLIST -->
@@ -454,7 +475,7 @@ var NO_DEAL = {label:"Regular price", cls:"t-none"};
 var REGION_ORDER = ["Asia","Europe","North America","Latin America","Oceania & Pacific","Middle East","Africa","Other"];
 var HUE = {"Asia":350,"Europe":215,"North America":190,"Latin America":28,"Oceania & Pacific":160,"Middle East":42,"Africa":300,"Other":250};
 
-var ROUTES = [], BY_ID = {}, META = null, REGIONS = [], OW = [], owQ = "", owWins = false;
+var ROUTES = [], BY_ID = {}, META = null, REGIONS = [], OW = [], owQ = "", owWins = false, FEEDS = null, feedsLoaded = false, cErr = false;
 
 /* ---------- state ---------- */
 var KEY = "fare-radar.v2";
@@ -688,6 +709,36 @@ function renderOneway(){
   $("#ow-table").innerHTML = '<table class="deals"><thead><tr><th scope="col" class="c-dest">Destination</th><th scope="col" class="hide-m">Cheapest one-way out</th><th scope="col" class="hide-m">Cheapest one-way back</th><th scope="col" class="num">Best pair</th><th scope="col" class="num hide-m">Round trip, similar length</th><th scope="col">Verdict</th><th scope="col" class="c-links">Check</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
+/* ---------- deal sites view ---------- */
+function renderCurated(){
+  var wrap = $("#c-table");
+  if (!feedsLoaded) { $("#c-line").textContent = ""; $("#c-status").innerHTML = ""; wrap.innerHTML = emptyBox("Loading deal sites", "Checking the latest posts."); return; }
+  if (!FEEDS) { $("#c-line").textContent = ""; $("#c-status").innerHTML = ""; wrap.innerHTML = emptyBox("No deal site data yet", "The first check of the deal sites runs with the next fare update, within about 8 hours."); return; }
+  $("#c-status").innerHTML = (FEEDS.feeds || []).map(function(f){
+    return '<span><i class="dotk" style="background:' + (f.ok ? "var(--good)" : "var(--error)") + '"></i>' + esc(f.name) + ': ' +
+      (f.ok ? f.matched + ' about Vancouver or Manila' : 'could not load') + '</span>';
+  }).join("");
+  var items = (FEEDS.items || []).filter(function(i){ return !cErr || i.error; });
+  var okCount = (FEEDS.feeds || []).filter(function(f){ return f.ok; }).length;
+  $("#c-line").textContent = items.length + (cErr ? " error fare" : " post") + (items.length === 1 ? "" : "s") + " from the last 14 days. Last checked " + ago(FEEDS.generated_at) + ".";
+  if (!items.length) {
+    wrap.innerHTML = emptyBox("Nothing to show", okCount === 0 ? "None of the deal sites could be loaded on the last check. Some sites block automated visits." : cErr ? "No error fares in the last 14 days." : "No posts about Vancouver or Manila in the last 14 days.");
+    return;
+  }
+  wrap.innerHTML = '<table class="deals"><thead><tr><th scope="col">Post</th><th scope="col" class="hide-m">Site</th><th scope="col">Posted</th></tr></thead><tbody>' + items.map(function(i){
+    return '<tr><td class="c-dest">' + (i.error ? '<span class="badge soft t-error" style="margin-right:6px">Error fare</span>' : '') +
+      '<a class="post-title" target="_blank" rel="noopener" href="' + esc(i.link) + '">' + esc(i.title) + '</a><span class="d-sub show-m">' + esc(i.source) + '</span></td>' +
+      '<td class="c-sub hide-m">' + esc(i.source) + '</td><td class="c-sub">' + ago(i.published) + '</td></tr>';
+  }).join("") + '</tbody></table>';
+}
+function loadFeeds(){
+  return fetch("feeds.json", {cache:"no-store"})
+    .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(d){ FEEDS = d; })
+    .catch(function(){ FEEDS = null; })
+    .then(function(){ feedsLoaded = true; if (currentView() === "curated") renderCurated(); });
+}
+
 /* ---------- watchlist view ---------- */
 function renderWatch(){
   if (!META) return;
@@ -846,7 +897,7 @@ function renderNotice(){
 }
 
 /* ---------- routing ---------- */
-var VIEWS = ["deals","oneway","watchlist","alerts"];
+var VIEWS = ["deals","oneway","curated","watchlist","alerts"];
 function currentView(){ var h = location.hash.replace("#",""); return VIEWS.indexOf(h) > -1 ? h : "deals"; }
 function renderView(){
   var v = currentView();
@@ -858,6 +909,7 @@ function renderView(){
   renderNotice();
   if (v === "deals") renderDeals();
   if (v === "oneway") renderOneway();
+  if (v === "curated") renderCurated();
   if (v === "watchlist") renderWatch();
   if (v === "alerts" && META) renderAlertsForm();
   renderInbox();
@@ -916,6 +968,7 @@ document.addEventListener("keydown", function(e){
 ["type","region","sort"].forEach(function(k){
   $("#f-" + k).addEventListener("change", function(e){ state.filters[k] = e.target.value; if (k === "sort") state.filters.rev = false; save(); renderDeals(); });
 });
+$("#c-err").addEventListener("change", function(e){ cErr = e.target.checked; renderCurated(); });
 $("#ow-q").addEventListener("input", function(e){ owQ = e.target.value; renderOneway(); });
 $("#ow-wins").addEventListener("change", function(e){ owWins = e.target.checked; renderOneway(); });
 $("#f-nonstop").addEventListener("change", function(e){ state.filters.nonstop = e.target.checked; save(); renderDeals(); });
@@ -962,6 +1015,7 @@ function loadData(){
   return fetch("deals.json", {cache:"no-store"})
     .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(useData)
+    .then(loadFeeds)
     .catch(function(err){
       if (META) return;
       $("#notice").innerHTML = '<span><b>Could not load fares.</b> The fare file did not load (' + esc(err.message) + '). Reload the page to try again.</span>';

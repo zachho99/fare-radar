@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["index.html", "manifest.json", "sw.js", "icons/**", "fetch_deals.py", "notify.py", "config.json", ".github/workflows/fare-check.yml"]
+    paths: ["index.html", "manifest.json", "sw.js", "icons/**", "fetch_deals.py", "fetch_feeds.py", "notify.py", "config.json", ".github/workflows/fare-check.yml"]
 
 permissions:
   contents: write
@@ -30,6 +30,10 @@ jobs:
           TP_TOKEN: ${{ secrets.TP_TOKEN }}
         run: python3 fetch_deals.py
 
+      - name: Fetch curated deal posts
+        continue-on-error: true
+        run: python3 fetch_feeds.py
+
       - name: Email new deals
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -42,7 +46,7 @@ jobs:
         run: |
           git config user.name "fare-radar-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deals.json data/
+          git add deals.json feeds.json data/
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -m "Update fares $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull --rebase origin main
@@ -61,7 +65,7 @@ jobs:
             cat index.html
             printf '\n</body>\n</html>\n'
           } > _site/index.html
-          cp deals.json manifest.json sw.js _site/
+          cp deals.json feeds.json manifest.json sw.js _site/
           cp -r icons _site/
 
       - uses: actions/configure-pages@v5

@@ -33,6 +33,15 @@ pair (2 to 60 nights) and compares it with the cheapest round trip of similar le
 (within 10 nights). A pair that is at least 5% cheaper is marked as a win. One-way data is
 much thinner than round-trip data, so many routes have no usable pair, and most pairs lose.
 
+## Deal sites
+
+`fetch_feeds.py` reads the public RSS feeds of Secret Flying, The Flight Deal, Fly4Free and
+r/flightdeals, keeps posts that mention Vancouver or Manila, and writes `feeds.json`. Only the
+headline and link are stored, and each post opens on its own site. Posts are also added to the
+alert email (never older than 36 hours). Some sites block automated visits, so `feeds.json`
+records whether each feed loaded, and the Deal sites tab shows it. To add a feed, add it to
+`FEEDS` in `fetch_feeds.py`.
+
 ## How deals are judged
 
 A route's usual price is the median of all fares found for it over the coming year
