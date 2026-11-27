@@ -1,0 +1,8 @@
+{
+  "min_pct": 30,
+  "types": ["error", "hot", "deal"],
+  "watch": [
+    {"dest": "TYO", "origin": "any", "max_usd": 650},
+    {"dest": "SEL", "origin": "any", "max_usd": 650}
+  ]
+}

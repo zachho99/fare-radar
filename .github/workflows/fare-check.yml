@@ -1,0 +1,76 @@
+name: Fare check
+
+on:
+  schedule:
+    # 3 times a day (UTC). About 5:17pm, 1:17am and 9:17am Vancouver time in winter.
+    - cron: "17 1,9,17 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["index.html", "fetch_deals.py", "notify.py", "config.json", ".github/workflows/fare-check.yml"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: fare-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch fares and find deals
+        env:
+          TP_TOKEN: ${{ secrets.TP_TOKEN }}
+        run: python3 fetch_deals.py
+
+      - name: Email new deals
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_TO: ${{ secrets.ALERT_TO }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python3 notify.py
+
+      - name: Save fares to the repo
+        run: |
+          git config user.name "fare-radar-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deals.json data/
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Update fares $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase origin main
+          git push
+
+      - name: Build the page
+        run: |
+          mkdir -p _site
+          {
+            printf '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+            printf '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
+            printf '<style>body{margin:0}img{max-width:100%%}</style>\n</head>\n<body>\n'
+            cat index.html
+            printf '\n</body>\n</html>\n'
+          } > _site/index.html
+          cp deals.json _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
