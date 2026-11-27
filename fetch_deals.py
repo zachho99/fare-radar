@@ -19,6 +19,7 @@ import ssl
 import statistics
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 ORIGINS = ["YVR", "MNL"]
@@ -111,20 +112,82 @@ def region(cc, tz):
     }.get(top, "Other")
 
 
-def fetch_origin(origin):
+def fetch_fares(extra):
+    """All cached fares matching `extra` (origin / destination / one_way), paged."""
     rows, page = [], 1
     while page <= 10:
-        url = (f"{API}?origin={origin}&currency=usd&period_type=year&one_way=false"
-               f"&limit=1000&sorting=price&page={page}")
-        d = get_json(url)
+        q = urllib.parse.urlencode(dict(extra, currency="usd", period_type="year",
+                                        limit=1000, sorting="price", page=page))
+        d = get_json(f"{API}?{q}")
         if not d.get("success"):
-            raise RuntimeError(f"{origin} page {page}: {d.get('error')}")
+            raise RuntimeError(f"{extra} page {page}: {d.get('error')}")
         batch = d.get("data") or []
         rows += batch
         if len(batch) < 1000:
             break
         page += 1
     return rows
+
+
+def fetch_origin(origin):
+    return fetch_fares({"origin": origin, "one_way": "false"})
+
+
+def collect_oneways(rows, key, tomorrow, exclude):
+    """code -> one-way fares, economy only, departing from tomorrow on."""
+    out = {}
+    for x in rows:
+        if x.get("trip_class") != 0 or not x.get("actual", True):
+            continue
+        day = x["depart_date"][:10]
+        code = x[key]
+        if day < tomorrow or code == exclude:
+            continue
+        out.setdefault(code, []).append(
+            {"date": day, "price": x["value"], "stops": x.get("number_of_changes", 0),
+             "gate": x.get("gate") or "", "found": x.get("found_at") or ""})
+    return out
+
+
+def nights_between(a, b):
+    return (dt.date.fromisoformat(b) - dt.date.fromisoformat(a)).days
+
+
+def oneway_section(rt_all, place, tomorrow):
+    """For each destination with a one-way fare out of a home airport, find the
+    cheapest outbound + return pair (2 to 60 nights) and compare it with the
+    cheapest round trip of similar length (within 10 nights)."""
+    result = []
+    for origin in ORIGINS:
+        outs = collect_oneways(fetch_fares({"origin": origin, "one_way": "true"}), "destination", tomorrow, origin)
+        backs = collect_oneways(fetch_fares({"destination": origin, "one_way": "true"}), "origin", tomorrow, origin)
+        for dest, o_list in outs.items():
+            o_list.sort(key=lambda f: (f["price"], f["date"]))
+            b_list = sorted(backs.get(dest, []), key=lambda f: (f["price"], f["date"]))
+            combo = None
+            for a in o_list:
+                for b in b_list:
+                    n = nights_between(a["date"], b["date"])
+                    if 2 <= n <= 60:
+                        total = a["price"] + b["price"]
+                        if combo is None or total < combo["total"]:
+                            combo = {"total": total, "out_price": a["price"], "ret_price": b["price"],
+                                     "out_date": a["date"], "ret_date": b["date"], "nights": n}
+            rts = rt_all.get((origin, dest), [])
+            ref = None
+            if combo:
+                sims = [f["price"] for f in rts if abs(nights_between(f["depart"], f["ret"]) - combo["nights"]) <= 10]
+                ref = min(sims) if sims else None
+            saves = round((1 - combo["total"] / ref) * 100) if combo and ref else None
+            city, country, reg = place.get(dest, [dest, "", "Other"])
+            result.append({
+                "origin": origin, "dest": dest, "city": city, "country": country, "region": reg,
+                "out": {k: o_list[0][k] for k in ("date", "price", "stops", "found")},
+                "back": ({k: b_list[0][k] for k in ("date", "price", "stops", "found")} if b_list else None),
+                "combo": combo, "rt_ref": ref, "rt_best": min((f["price"] for f in rts), default=None),
+                "saves": saves, "beats": saves is not None and saves >= 5,
+            })
+    return result
 
 
 def main():
@@ -137,6 +200,7 @@ def main():
     previous = {(r["origin"], r["dest"]): r for r in load(OUT, {}).get("routes", []) if r.get("deal") or r.get("watch_hit")}
 
     routes = []
+    rt_all = {}
     for origin in ORIGINS:
         by_dest = {}
         for x in fetch_origin(origin):
@@ -151,6 +215,7 @@ def main():
 
         for dest, fares in by_dest.items():
             fares.sort(key=lambda f: (f["price"], f["depart"]))
+            rt_all[(origin, dest)] = fares
             best = fares[0]
             n = len(fares)
             typical = statistics.median(f["price"] for f in fares) if n >= MIN_SAMPLES else None
@@ -197,14 +262,24 @@ def main():
             new.append(r)
     new.sort(key=lambda r: -r["pct"])
 
+    oneways = oneway_section(rt_all, place, tomorrow)
+
     save(OUT, {"generated_at": now.isoformat(timespec="seconds"), "origins": ORIGINS,
-               "currency": "USD", "source": "Travelpayouts (Aviasales) Data API", "routes": routes})
+               "currency": "USD", "source": "Travelpayouts (Aviasales) Data API", "routes": routes,
+               "oneways": oneways})
     save(os.path.join(DATA, "history.json"), history)
     save(os.path.join(DATA, "new_deals.json"), {"generated_at": now.isoformat(timespec="seconds"),
                                                 "first_run": not previous, "deals": new})
 
     deals = [r for r in routes if r["deal"]]
     print(f"{len(routes)} routes, {len(deals)} deals, {len(new)} new or cheaper since last run")
+    wins = [o for o in oneways if o["beats"]]
+    print(f"{len(oneways)} one-way routes, {sum(1 for o in oneways if o['combo'])} with a usable pair, "
+          f"{len(wins)} pairs beat the round trip")
+    for o in sorted(wins, key=lambda o: -o["saves"]):
+        c = o["combo"]
+        print(f"  {o['origin']}-{o['dest']} {o['city']}: ${c['out_price']}+${c['ret_price']}=${c['total']} "
+              f"({c['out_date']}..{c['ret_date']}) vs round trip ${o['rt_ref']}, saves {o['saves']}%")
     for r in sorted(deals, key=lambda r: -r["pct"])[:15]:
         print(f"  {r['origin']}-{r['dest']:<4} {r['city'][:18]:<18} ${r['price']:>5} vs ${r['typical']:>7} "
               f"-{r['pct']}%  {r['depart']}..{r['ret']}  n={r['n']}")

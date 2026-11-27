@@ -25,6 +25,14 @@ page on GitHub Pages.
 | `GMAIL_APP_PASSWORD` | Gmail app password for that address |
 | `ALERT_TO` | Where alerts go (optional, defaults to `GMAIL_USER`) |
 
+## One-way pairs
+
+The One-way tab takes the cheapest one-way fares out of each home airport and the cheapest
+one-way fares back into it. For each destination it finds the cheapest outbound plus return
+pair (2 to 60 nights) and compares it with the cheapest round trip of similar length
+(within 10 nights). A pair that is at least 5% cheaper is marked as a win. One-way data is
+much thinner than round-trip data, so many routes have no usable pair, and most pairs lose.
+
 ## How deals are judged
 
 A route's usual price is the median of all fares found for it over the coming year

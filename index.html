@@ -265,6 +265,13 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
 .star-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
 .star-btn[aria-pressed="true"]{color:var(--accent)}
 .star-btn[aria-pressed="true"] svg{fill:currentColor}
+.mini-link{display:inline-block;font-size:12.5px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-right:4px;background:var(--surface);white-space:nowrap}
+.mini-link:hover{border-color:var(--ink)}
+.c-links{white-space:nowrap}
+#ow-table{overflow-x:auto}
+.deals td.c-sub{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.deals td.c-sub b{color:var(--ink);font-weight:600}
+.offpill.wide{white-space:nowrap;min-width:0}
 .show-m{display:none}
 .field .check input{width:auto}
 .check{white-space:nowrap}
@@ -274,6 +281,9 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
   .show-m{display:inline}
   .d-country{display:none}
   .d-dates{display:block}
+  .deals td.c-sub{white-space:normal}
+  .offpill.wide{white-space:normal;text-align:left}
+  .c-links .mini-link{display:block;margin:0 0 4px}
   .deals th,.deals td{padding:8px 8px}
   .deals td.c-price{font-size:15px}
   .c-star{width:36px}
@@ -297,6 +307,7 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
     </a>
     <nav class="tabs" aria-label="Sections">
       <a href="#deals" data-view="deals">Deals</a>
+      <a href="#oneway" data-view="oneway">One-way</a>
       <a href="#watchlist" data-view="watchlist">Watchlist</a>
       <a href="#alerts" data-view="alerts">Alerts<span id="alert-badge" class="dot-count" hidden></span></a>
     </nav>
@@ -351,6 +362,22 @@ table.deals{width:100%;border-collapse:collapse;font-size:14px}
     </div>
     <div class="tablewrap" id="tablewrap"></div>
     <div class="grid" id="grid" hidden></div>
+  </section>
+
+  <!-- ONE-WAY -->
+  <section id="view-oneway" class="view" hidden>
+    <div class="view-head">
+      <div>
+        <h1>One-way pairs</h1>
+        <p>Two one-way tickets can beat a round trip, but usually they do not. This page compares the cheapest outbound plus return pair (2 to 60 nights) with the cheapest round trip of similar length, and says which wins.</p>
+      </div>
+    </div>
+    <div class="filters">
+      <label class="field grow"><span class="label">Search</span><input id="ow-q" type="search" placeholder="City, country or airport code" autocomplete="off"></label>
+      <div class="field"><span class="label">Show</span><label class="check" for="ow-wins"><input type="checkbox" id="ow-wins"> Only where one-ways win</label></div>
+    </div>
+    <div class="resultbar"><span id="ow-line"></span></div>
+    <div class="tablewrap" id="ow-table"></div>
   </section>
 
   <!-- WATCHLIST -->
@@ -427,7 +454,7 @@ var NO_DEAL = {label:"Regular price", cls:"t-none"};
 var REGION_ORDER = ["Asia","Europe","North America","Latin America","Oceania & Pacific","Middle East","Africa","Other"];
 var HUE = {"Asia":350,"Europe":215,"North America":190,"Latin America":28,"Oceania & Pacific":160,"Middle East":42,"Africa":300,"Other":250};
 
-var ROUTES = [], BY_ID = {}, META = null, REGIONS = [];
+var ROUTES = [], BY_ID = {}, META = null, REGIONS = [], OW = [], owQ = "", owWins = false;
 
 /* ---------- state ---------- */
 var KEY = "fare-radar.v2";
@@ -620,6 +647,47 @@ function renderDeals(){
     emptyBox("Nothing matches these filters", "Try another region, clear the search box, or choose “Every route” under Show.");
 }
 
+/* ---------- one-way view ---------- */
+function owLink(o, from, to, date){
+  var q = "One way flights from " + from + " to " + to + " on " + date;
+  return "https://www.google.com/travel/flights?q=" + encodeURIComponent(q);
+}
+function renderOneway(){
+  if (!META) return;
+  var q = owQ.trim().toLowerCase();
+  var all = OW.filter(function(o){ return state.homes[o.origin]; });
+  var list = all.filter(function(o){
+    if (owWins && !o.beats) return false;
+    return !q || [o.dest, o.city, o.country].join(" ").toLowerCase().indexOf(q) !== -1;
+  }).sort(function(a,b){
+    var sa = a.saves == null ? -999 : a.saves, sb = b.saves == null ? -999 : b.saves;
+    return sb - sa || a.out.price - b.out.price;
+  });
+  var wins = all.filter(function(o){ return o.beats; }).length, pairs = all.filter(function(o){ return o.combo; }).length;
+  $("#ow-line").textContent = all.length + " routes with one-way fares, " + pairs + " with a usable pair, " + wins + " where two one-ways beat the round trip by 5% or more.";
+  if (!list.length) { $("#ow-table").innerHTML = emptyBox("Nothing to show", owWins ? "No pair beats the round trip right now. That is common, so check back after the next update." : "Try a different search."); return; }
+  var rows = list.map(function(o){
+    var cur = curFor(o), c = o.combo, verdict, cls;
+    if (o.beats) { verdict = "Save " + o.saves + "%"; cls = "t-std"; }
+    else if (o.saves != null) { verdict = "Round trip is cheaper"; cls = "t-none"; }
+    else if (!o.back) { verdict = "No return fare found"; cls = "t-none"; }
+    else if (!c) { verdict = "No pair of 2 to 60 nights"; cls = "t-none"; }
+    else { verdict = "No round trip to compare"; cls = "t-none"; }
+    var outTxt = '<b>' + money(o.out.price, cur) + '</b> ' + shortDate(o.out.date);
+    var backTxt = o.back ? '<b>' + money(o.back.price, cur) + '</b> ' + shortDate(o.back.date) : '–';
+    var pair = c ? '<b>' + money(c.total, cur) + '</b><br><small>' + money(c.out_price, cur) + ' + ' + money(c.ret_price, cur) + ', ' + shortDate(c.out_date) + ' to ' + shortDate(c.ret_date) + '</small>' : '–';
+    var links = '<a class="mini-link" target="_blank" rel="noopener" href="' + esc(owLink(o, o.origin, o.city, c ? c.out_date : o.out.date)) + '">Out</a>' +
+      (c || o.back ? '<a class="mini-link" target="_blank" rel="noopener" href="' + esc(owLink(o, o.city, o.origin, c ? c.ret_date : o.back.date)) + '">Back</a>' : '');
+    return '<tr><td class="c-dest"><span class="d-city">' + esc(o.city) + '</span><span class="d-sub"><span class="mono">' + o.origin + ' → ' + esc(o.dest) + '</span><span class="d-country"> · ' + esc(o.country) + '</span></span></td>' +
+      '<td class="c-sub hide-m">' + outTxt + '</td><td class="c-sub hide-m">' + backTxt + '</td>' +
+      '<td class="c-sub num">' + pair + '</td>' +
+      '<td class="c-sub num hide-m">' + (o.rt_ref != null ? '<b>' + money(o.rt_ref, cur) + '</b>' : (o.rt_best != null ? money(o.rt_best, cur) + '<br><small>other dates</small>' : '–')) + '</td>' +
+      '<td><span class="offpill wide ' + cls + '">' + verdict + '</span></td>' +
+      '<td class="c-links">' + links + '</td></tr>';
+  }).join("");
+  $("#ow-table").innerHTML = '<table class="deals"><thead><tr><th scope="col" class="c-dest">Destination</th><th scope="col" class="hide-m">Cheapest one-way out</th><th scope="col" class="hide-m">Cheapest one-way back</th><th scope="col" class="num">Best pair</th><th scope="col" class="num hide-m">Round trip, similar length</th><th scope="col">Verdict</th><th scope="col" class="c-links">Check</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
 /* ---------- watchlist view ---------- */
 function renderWatch(){
   if (!META) return;
@@ -778,7 +846,7 @@ function renderNotice(){
 }
 
 /* ---------- routing ---------- */
-var VIEWS = ["deals","watchlist","alerts"];
+var VIEWS = ["deals","oneway","watchlist","alerts"];
 function currentView(){ var h = location.hash.replace("#",""); return VIEWS.indexOf(h) > -1 ? h : "deals"; }
 function renderView(){
   var v = currentView();
@@ -789,6 +857,7 @@ function renderView(){
   renderHeader();
   renderNotice();
   if (v === "deals") renderDeals();
+  if (v === "oneway") renderOneway();
   if (v === "watchlist") renderWatch();
   if (v === "alerts" && META) renderAlertsForm();
   renderInbox();
@@ -847,6 +916,8 @@ document.addEventListener("keydown", function(e){
 ["type","region","sort"].forEach(function(k){
   $("#f-" + k).addEventListener("change", function(e){ state.filters[k] = e.target.value; if (k === "sort") state.filters.rev = false; save(); renderDeals(); });
 });
+$("#ow-q").addEventListener("input", function(e){ owQ = e.target.value; renderOneway(); });
+$("#ow-wins").addEventListener("change", function(e){ owWins = e.target.checked; renderOneway(); });
 $("#f-nonstop").addEventListener("change", function(e){ state.filters.nonstop = e.target.checked; save(); renderDeals(); });
 $("#f-q").addEventListener("input", function(e){ state.filters.q = e.target.value; save(); renderDeals(); });
 $("#currency").addEventListener("change", function(e){ state.currency = e.target.value; save(); renderView(); });
@@ -877,6 +948,7 @@ $("#mark-read").addEventListener("click", function(){
 /* ---------- data ---------- */
 function useData(d){
   META = d;
+  OW = d.oneways || [];
   ROUTES = (d.routes || []).map(function(r){ r.id = r.origin + "-" + r.dest; return r; });
   BY_ID = {}; ROUTES.forEach(function(r){ BY_ID[r.id] = r; });
   var present = {}; ROUTES.forEach(function(r){ present[r.region] = 1; });
