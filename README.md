@@ -35,12 +35,12 @@ much thinner than round-trip data, so many routes have no usable pair, and most 
 
 ## Deal sites
 
-`fetch_feeds.py` reads the public RSS feeds of Secret Flying, The Flight Deal, Fly4Free and
-r/flightdeals, keeps posts that mention Vancouver or Manila, and writes `feeds.json`. Only the
+`fetch_feeds.py` reads the public RSS feeds of Flytrippers, The Flight Deal and Fly4Free, keeps posts that mention Vancouver or Manila, and writes `feeds.json`. Only the
 headline and link are stored, and each post opens on its own site. Posts are also added to the
 alert email (never older than 36 hours). Some sites block automated visits, so `feeds.json`
-records whether each feed loaded, and the Deal sites tab shows it. To add a feed, add it to
-`FEEDS` in `fetch_feeds.py`.
+records whether each feed loaded, and the Deal sites tab shows it. Secret Flying and Reddit
+were tried and block automated visits from GitHub, so they are not used. To add a feed, add it
+to `FEEDS` in `fetch_feeds.py`.
 
 ## How deals are judged
 

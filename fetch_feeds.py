@@ -28,21 +28,18 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data")
 OUT = os.path.join(ROOT, "feeds.json")
 
+# Secret Flying and Reddit were tried and both refuse automated visits from GitHub's servers,
+# so they are left out. Add a feed here and the Deal sites tab shows whether it loaded.
 FEEDS = [
-    {"name": "Secret Flying", "url": "https://www.secretflying.com/feed/"},
-    {"name": "Secret Flying Vancouver", "url": "https://www.secretflying.com/posts/category/cities-countries/canada/vancouver/feed/"},
-    {"name": "Secret Flying Manila", "url": "https://www.secretflying.com/posts/category/cities-countries/philippines/manila/feed/"},
     {"name": "Flytrippers", "url": "https://flytrippers.com/feed/"},
-    {"name": "Flytrippers deals", "url": "https://flytrippers.com/category/flight-deals/feed/"},
     {"name": "The Flight Deal", "url": "https://www.theflightdeal.com/feed/"},
     {"name": "Fly4Free", "url": "https://www.fly4free.com/feed/"},
-    {"name": "r/flightdeals", "url": "https://www.reddit.com/r/flightdeals/search.rss?q=Vancouver+OR+YVR+OR+Manila+OR+MNL&restrict_sr=on&sort=new&t=month"},
 ]
 UA = "Mozilla/5.0 (compatible; fare-radar/1.0; personal flight deal tracker)"
 KEEP_DAYS = 14
 MAX_ITEMS = 150
 
-HOME = re.compile(r"\b(vancouver|yvr|manila|mnl)\b", re.I)
+HOME = re.compile(r"\b(vancouver|vancouverites?|yvr|manila|mnl)\b", re.I)
 NOT_FLIGHT = re.compile(r"\b(hotels?|resorts?|hostels?|airbnb|cruises?|car rental)\b", re.I)
 ERROR = re.compile(r"error fare|mistake fare|pricing error|glitch|price error", re.I)
 TAGS = re.compile(r"<[^>]+>")
@@ -168,7 +165,7 @@ def run(feeds=FEEDS, fetcher=fetch, now=None):
 
     # keep recent posts from earlier runs, so a post does not vanish when the site drops it from its feed
     cutoff = (now - dt.timedelta(days=KEEP_DAYS)).isoformat(timespec="seconds")
-    items = {**{k: v for k, v in old.items() if v["published"] >= cutoff}, **found}
+    items = {**{k: v for k, v in old.items() if v["published"] >= cutoff and not NOT_FLIGHT.search(v["title"])}, **found}
     items = sorted(items.values(), key=lambda i: i["published"], reverse=True)[:MAX_ITEMS]
 
     seen_path = os.path.join(DATA, "seen_curated.json")
