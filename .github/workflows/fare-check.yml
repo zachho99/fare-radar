@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["index.html", "fetch_deals.py", "notify.py", "config.json", ".github/workflows/fare-check.yml"]
+    paths: ["index.html", "manifest.json", "sw.js", "icons/**", "fetch_deals.py", "notify.py", "config.json", ".github/workflows/fare-check.yml"]
 
 permissions:
   contents: write
@@ -54,11 +54,15 @@ jobs:
           {
             printf '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             printf '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
-            printf '<style>body{margin:0}img{max-width:100%%}</style>\n</head>\n<body>\n'
+            printf '<meta name="theme-color" content="#EEF2F7" media="(prefers-color-scheme: light)">\n<meta name="theme-color" content="#0A111C" media="(prefers-color-scheme: dark)">\n'
+            printf '<link rel="manifest" href="manifest.json">\n<link rel="icon" href="icons/icon-192.png">\n<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">\n'
+            printf '<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="Fare Radar">\n'
+            printf '<style>body{margin:0}img{max-width:100%%}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>\n</head>\n<body>\n'
             cat index.html
             printf '\n</body>\n</html>\n'
           } > _site/index.html
-          cp deals.json _site/
+          cp deals.json manifest.json sw.js _site/
+          cp -r icons _site/
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

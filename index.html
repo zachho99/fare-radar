@@ -49,7 +49,7 @@
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
-.wrap{max-width:1180px;margin:0 auto}
+.wrap{max-width:1280px;margin:0 auto}
 h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -231,6 +231,56 @@ h2.sub{font-size:19px;margin-top:28px}
 .trip .d{flex:1 1 220px;min-width:0}
 .trip .d small{display:block;margin-left:0}
 .note{margin:0;color:var(--muted);font-size:13.5px;max-width:68ch}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.resultbar{margin-top:14px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 18px;color:var(--muted);font-size:13px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dotk{display:inline-block;width:10px;height:10px;border-radius:3px}
+.tablewrap{margin-top:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:clip}
+table.deals{width:100%;border-collapse:collapse;font-size:14px}
+.deals th{position:sticky;top:env(safe-area-inset-top,0px);z-index:2;text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap}
+.deals th button{background:none;border:0;padding:0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
+.deals th button:hover,.deals th[aria-sort] button{color:var(--ink)}
+.deals td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:middle}
+.deals tbody tr:first-child td{border-top:0}
+.deals tr.row{cursor:pointer}
+.deals tr.row:hover td{background:var(--surface-2)}
+.deals tr.row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.deals .num{text-align:right;font-variant-numeric:tabular-nums}
+.deals td.c-price{font-family:var(--f-display);font-weight:700;font-size:16px;white-space:nowrap}
+.deals td.c-usual{color:var(--muted);white-space:nowrap}
+.deals td.c-dates{white-space:nowrap;font-variant-numeric:tabular-nums}
+.deals td.c-dates small{display:block;color:var(--muted);font-size:12px}
+.deals td.c-found,.deals td.c-stops{color:var(--muted);white-space:nowrap}
+.c-star{width:44px;padding-right:0!important}
+.c-dest{min-width:0}
+.d-city{display:block;font-weight:600}
+.d-sub{display:block;color:var(--muted);font-size:12.5px}
+.offpill{display:inline-block;min-width:3.4em;text-align:center;padding:2px 7px;border-radius:6px;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;background:var(--surface-2)}
+.offpill.t-error{background:var(--error-soft)}
+.offpill.t-flash{background:var(--accent-soft)}
+.offpill.t-std{background:var(--std-soft)}
+.star-btn{width:30px;height:30px;border-radius:50%;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;padding:0}
+.star-btn:hover{background:var(--surface-2)}
+.star-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+.star-btn[aria-pressed="true"]{color:var(--accent)}
+.star-btn[aria-pressed="true"] svg{fill:currentColor}
+.show-m{display:none}
+.field .check input{width:auto}
+.check{white-space:nowrap}
+@media (max-width:980px){.hide-s{display:none}}
+@media (max-width:640px){
+  .hide-m{display:none}
+  .show-m{display:inline}
+  .d-country{display:none}
+  .deals th,.deals td{padding:8px 8px}
+  .deals td.c-price{font-size:15px}
+  .c-star{width:36px}
+  #board,#view-deals .view-head{display:none}
+  .notice{font-size:12.5px;padding:8px 12px;margin-top:12px}
+  #view-deals.view{padding-top:12px}
+  .filters{margin-top:12px}
+}
 </style>
 
 <div class="wrap">
@@ -289,11 +339,17 @@ h2.sub{font-size:19px;margin-top:28px}
         </select></label>
       <label class="field"><span class="label">Region</span><select id="f-region"><option value="all">All regions</option></select></label>
       <label class="field"><span class="label">Sort</span>
-        <select id="f-sort"><option value="savings">Biggest savings</option><option value="price">Lowest price</option><option value="newest">Most recently found</option><option value="soonest">Departing soonest</option></select></label>
+        <select id="f-sort"><option value="savings">Biggest savings</option><option value="price">Lowest price</option><option value="newest">Most recently found</option><option value="soonest">Departing soonest</option><option value="city">Destination A to Z</option></select></label>
       <label class="field grow"><span class="label">Search</span><input id="f-q" type="search" placeholder="City, country or airport code" autocomplete="off"></label>
+      <div class="field"><span class="label">Stops</span><label class="check" for="f-nonstop"><input type="checkbox" id="f-nonstop"> Nonstop only</label></div>
+      <div class="field"><span class="label">View</span><div class="segs" id="f-view" role="group" aria-label="View"></div></div>
     </div>
-    <div class="result-line" id="result-line"></div>
-    <div class="grid" id="grid"><div class="empty"><b>Loading fares</b>Fetching the latest prices from YVR and MNL.</div></div>
+    <div class="resultbar">
+      <span id="result-line"></span>
+      <div class="legend" aria-label="Color key"><span><i class="dotk" style="background:var(--error)"></i>Possible error fare</span><span><i class="dotk" style="background:var(--accent)"></i>Hot deal</span><span><i class="dotk" style="background:var(--std)"></i>Deal</span></div>
+    </div>
+    <div class="tablewrap" id="tablewrap"></div>
+    <div class="grid" id="grid" hidden></div>
   </section>
 
   <!-- WATCHLIST -->
@@ -377,7 +433,7 @@ var KEY = "fare-radar.v2";
 function defaults(){
   return {
     homes:{YVR:true, MNL:true}, currency:"local",
-    filters:{origin:"all", type:"deals", region:"all", sort:"savings", q:""},
+    filters:{origin:"all", type:"deals", region:"all", sort:"savings", rev:false, view:"table", nonstop:false, q:""},
     watch:[{dest:"TYO",origin:"any",max:900,cur:"CAD",example:true},{dest:"SYD",origin:"MNL",max:30000,cur:"PHP",example:true}],
     prefs:{types:{error:true,hot:true,deal:true}, regions:{}, minPct:30, watchOnly:false},
     seen:[]
@@ -468,6 +524,43 @@ function card(r){
 }
 function emptyBox(title, text){ return '<div class="empty"><b>' + title + '</b>' + text + '</div>'; }
 
+function row(r){
+  var cur = curFor(r), t = typeOf(r), watched = watchesDest(r.dest);
+  var dates = shortDate(r.depart) + ' to ' + shortDate(r.ret);
+  var label = r.origin + " to " + r.city + ", " + money(r.price, cur) + " round trip" + (r.pct > 0 ? ", " + r.pct + " percent below usual" : "");
+  return '<tr class="row" tabindex="0" data-open="' + esc(r.id) + '" aria-label="' + esc(label) + '">' +
+    '<td class="c-star"><button type="button" class="star-btn" data-watch="' + esc(r.dest) + '" aria-pressed="' + watched + '" aria-label="' + (watched ? "Remove " : "Add ") + esc(r.city) + (watched ? " from" : " to") + ' watchlist" title="' + (watched ? "On your watchlist" : "Watch this destination") + '">' + STAR + '</button></td>' +
+    '<td class="c-dest"><span class="d-city">' + esc(r.city) + '</span><span class="d-sub"><span class="mono">' + r.origin + ' → ' + esc(r.dest) + '</span><span class="d-country"> · ' + esc(r.country) + '</span><span class="show-m"> · ' + dates + '</span></span></td>' +
+    '<td class="c-price num">' + money(r.price, cur) + '</td>' +
+    '<td class="c-usual num hide-m">' + (r.typical ? money(r.typical, cur) : '–') + '</td>' +
+    '<td class="c-off num"><span class="offpill ' + t.cls + '" title="' + esc(t.label) + '">' + (r.pct > 0 ? '−' + r.pct + '%' : '–') + '</span></td>' +
+    '<td class="c-dates hide-m">' + dates + '<small>' + nights(r.depart, r.ret) + ' nights</small></td>' +
+    '<td class="c-stops hide-s">' + stopsLabel(r.stops) + '</td>' +
+    '<td class="c-type hide-m"><span class="badge soft ' + t.cls + '">' + t.label + '</span></td>' +
+    '<td class="c-found hide-s">' + ago(r.found) + '</td></tr>';
+}
+function tableHtml(list){
+  var f = state.filters;
+  var cols = [
+    {t:"Watch", sr:true, cls:"c-star"},
+    {t:"Destination", sort:"city", nat:"asc", cls:"c-dest"},
+    {t:"Price", sort:"price", nat:"asc", cls:"num"},
+    {t:"Usual", cls:"num hide-m"},
+    {t:"Below usual", sort:"savings", nat:"desc", cls:"num"},
+    {t:"Dates", sort:"soonest", nat:"asc", cls:"hide-m"},
+    {t:"Stops", cls:"hide-s"},
+    {t:"Type", cls:"hide-m"},
+    {t:"Found", sort:"newest", nat:"desc", cls:"hide-s"}
+  ];
+  var head = cols.map(function(c){
+    var active = c.sort && f.sort === c.sort, asc = (c.nat === "asc") !== !!f.rev;
+    var inner = c.sr ? '<span class="sr">' + c.t + '</span>' :
+      c.sort ? '<button type="button" data-sortcol="' + c.sort + '">' + c.t + '<span aria-hidden="true">' + (active ? (asc ? " ▲" : " ▼") : "") + '</span></button>' : c.t;
+    return '<th scope="col" class="' + c.cls + '"' + (active ? ' aria-sort="' + (asc ? "ascending" : "descending") + '"' : '') + '>' + inner + '</th>';
+  }).join("");
+  return '<table class="deals"><thead><tr>' + head + '</tr></thead><tbody>' + list.map(row).join("") + '</tbody></table>';
+}
+
 /* ---------- deals view ---------- */
 function feed(){
   var f = state.filters, q = (f.q || "").trim().toLowerCase();
@@ -476,6 +569,7 @@ function feed(){
     if (f.type === "deals" && !r.deal) return false;
     if (TYPES[f.type] && r.deal !== f.type) return false;
     if (f.region !== "all" && r.region !== f.region) return false;
+    if (f.nonstop && r.stops > 0) return false;
     if (q && [r.dest, r.city, r.country, r.region].join(" ").toLowerCase().indexOf(q) === -1) return false;
     return true;
   });
@@ -483,9 +577,11 @@ function feed(){
     savings:function(a,b){ return b.pct - a.pct || a.price - b.price; },
     price:function(a,b){ return a.price - b.price; },
     newest:function(a,b){ return Date.parse(b.found) - Date.parse(a.found); },
-    soonest:function(a,b){ return a.depart < b.depart ? -1 : a.depart > b.depart ? 1 : a.price - b.price; }
+    soonest:function(a,b){ return a.depart < b.depart ? -1 : a.depart > b.depart ? 1 : a.price - b.price; },
+    city:function(a,b){ return a.city.localeCompare(b.city) || a.price - b.price; }
   }[f.sort] || function(a,b){ return b.pct - a.pct; };
-  return list.sort(by);
+  list.sort(by);
+  return f.rev ? list.reverse() : list;
 }
 function renderBoard(){
   var deals = liveDeals(), routes = liveRoutes();
@@ -506,11 +602,20 @@ function renderDeals(){
     var on = f.origin === o;
     return '<button type="button" class="seg' + (on ? " on" : "") + '" data-origin="' + o + '" aria-pressed="' + on + '">' + (o === "all" ? "All" : o) + '</button>';
   }).join("");
+  $("#f-view").innerHTML = [["table","Table"],["cards","Cards"]].map(function(v){
+    var on = (f.view || "table") === v[0];
+    return '<button type="button" class="seg' + (on ? " on" : "") + '" data-viewmode="' + v[0] + '" aria-pressed="' + on + '">' + v[1] + '</button>';
+  }).join("");
+  $("#f-nonstop").checked = !!f.nonstop;
+  $("#f-sort").value = f.sort;
   if (!META) return;
   renderBoard();
   var list = feed();
   $("#result-line").textContent = list.length + (f.type === "all" ? " route" : " deal") + (list.length === 1 ? "" : "s") + " shown. Prices are round trip per person in economy.";
-  $("#grid").innerHTML = list.length ? list.map(card).join("") :
+  var table = f.view !== "cards";
+  $("#tablewrap").hidden = !table; $("#grid").hidden = table;
+  var shown = !list.length ? "" : table ? tableHtml(list) : list.map(card).join("");
+  (table ? $("#tablewrap") : $("#grid")).innerHTML = shown ||
     emptyBox("Nothing matches these filters", "Try another region, clear the search box, or choose “Every route” under Show.");
 }
 
@@ -668,7 +773,7 @@ function renderNotice(){
   n.classList.toggle("stale", age > 2 * DAY);
   n.innerHTML = age > 2 * DAY
     ? '<span><b>Fares are ' + Math.floor(age / DAY) + ' days old.</b> Last updated ' + esc(when) + '. Check prices with the links on each fare before you book.</span>'
-    : '<span><b>Real fares, updated ' + ago(META.generated_at) + '</b> (' + esc(when) + '). These are the cheapest round trips travelers recently found on Aviasales. Prices change quickly, so confirm with the links on each fare before booking. ' + (state.currency === "USD" ? "" : "CAD and PHP are converted from USD at approximate rates.") + '</span>';
+    : '<span><b>Real fares, updated ' + ago(META.generated_at) + '.</b> Cheapest round trips travelers recently found. Prices change fast, so confirm before booking.' + (state.currency === "USD" ? "" : " CAD and PHP are approximate.") + '</span>';
 }
 
 /* ---------- routing ---------- */
@@ -701,6 +806,12 @@ document.addEventListener("click", function(e){
     if (inSheet) openRoute(inSheet); else renderView();
     return;
   }
+  if ((el = e.target.closest("[data-sortcol]"))) {
+    var sk = el.getAttribute("data-sortcol");
+    if (state.filters.sort === sk) state.filters.rev = !state.filters.rev; else { state.filters.sort = sk; state.filters.rev = false; }
+    save(); renderDeals(); return;
+  }
+  if ((el = e.target.closest("[data-viewmode]"))) { state.filters.view = el.getAttribute("data-viewmode"); save(); renderDeals(); return; }
   if ((el = e.target.closest("[data-open]"))) { openRoute(el.getAttribute("data-open")); return; }
   if ((el = e.target.closest("[data-origin]"))) { state.filters.origin = el.getAttribute("data-origin"); save(); renderDeals(); return; }
   if ((el = e.target.closest("[data-home]"))) {
@@ -723,7 +834,7 @@ document.addEventListener("click", function(e){
 });
 document.addEventListener("keydown", function(e){
   if (e.key === "Escape") { closeRoute(); return; }
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("article.card")) { e.preventDefault(); openRoute(e.target.getAttribute("data-open")); }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("article.card, tr.row")) { e.preventDefault(); openRoute(e.target.getAttribute("data-open")); }
   if (e.key === "Tab" && !$("#overlay").hidden) {
     var f = $("#sheet").querySelectorAll("button,a[href]");
     if (!f.length) return;
@@ -733,8 +844,9 @@ document.addEventListener("keydown", function(e){
   }
 });
 ["type","region","sort"].forEach(function(k){
-  $("#f-" + k).addEventListener("change", function(e){ state.filters[k] = e.target.value; save(); renderDeals(); });
+  $("#f-" + k).addEventListener("change", function(e){ state.filters[k] = e.target.value; if (k === "sort") state.filters.rev = false; save(); renderDeals(); });
 });
+$("#f-nonstop").addEventListener("change", function(e){ state.filters.nonstop = e.target.checked; save(); renderDeals(); });
 $("#f-q").addEventListener("input", function(e){ state.filters.q = e.target.value; save(); renderDeals(); });
 $("#currency").addEventListener("change", function(e){ state.currency = e.target.value; save(); renderView(); });
 $("#watch-form").addEventListener("submit", function(e){
@@ -789,6 +901,7 @@ $("#f-q").value = state.filters.q || "";
 $("#w-cur").value = "CAD";
 renderView();
 loadData();
+try { if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(function(){}); } catch(e) {}
 setInterval(function(){ if ($("#overlay").hidden) renderNotice(); }, 60000);
 })();
 </script>
